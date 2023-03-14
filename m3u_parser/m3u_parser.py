@@ -9,6 +9,7 @@ import ssl
 import sys
 import time
 from typing import Union
+from tqdm.auto import tqdm
 
 import aiohttp
 import pycountry
@@ -44,6 +45,7 @@ class M3uParser:
     """
 
     def __init__(self, useragent: str = None, timeout: int = 5):
+        self._pbar = None
         self._streams_info = []
         self._streams_info_backup = []
         self._lines = []
@@ -67,7 +69,7 @@ class M3uParser:
         self._language_regex = re.compile(r"tvg-language=\"(.*?)\"", flags=re.IGNORECASE)
         self._tvg_url_regex = re.compile(r"tvg-url=\"(.*?)\"", flags=re.IGNORECASE)
 
-    def parse_m3u(self, path: str, check_live: bool = True, enforce_schema: bool = True):
+    def parse_m3u(self, path: str, check_live: bool = True, enforce_schema: bool = True, progress_bar: tqdm = None):
         """Parses the content of local file/URL.
 
         It downloads the file from the given url or use the local file path to get the content and parses line by line
@@ -82,6 +84,8 @@ class M3uParser:
         :rtype: None
 
         """
+
+        self._pbar = progress_bar
         self._check_live = check_live
         self._enforce_schema = enforce_schema
         if is_valid_url(path):
@@ -114,6 +118,9 @@ class M3uParser:
 
     def _parse_lines(self):
         num_lines = len(self._lines)
+        if(self._pbar is not None):
+            self._pbar.initial = 0
+            self._pbar.total = num_lines
         self._streams_info.clear()
         try:
             self._loop = asyncio.get_event_loop()
@@ -132,6 +139,7 @@ class M3uParser:
         logging.info("Parsing completed !!!")
 
     async def _parse_line(self, line_num: int):
+        if(self._pbar is not None): self._pbar.update(2)
         line_info = self._lines[line_num]
         stream_link = ""
         streams_link = []
@@ -470,13 +478,15 @@ class M3uParser:
 
 
 if __name__ == "__main__":
-    url = "/home/pawan/Downloads/ru.m3u"
+    url = "/home/oliverzein/Downloads/playlist_YehxcVm8q8_plus.m3u"
     useragent = (
         "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/86.0.4240.75 Safari/537.36"
     )
     parser = M3uParser(timeout=5, useragent=useragent)
-    parser.parse_m3u(url)
-    parser.remove_by_extension("mp4")
-    parser.filter_by("status", "GOOD")
+    pbar = tqdm(desc="Parsing", unit="Lines")
+    parser.parse_m3u(url, check_live=False)
+    #parser.remove_by_extension("mp4")
+    #parser.filter_by("status", "GOOD")
+    parser.filter_by("category", "DE • FHD • RAW")
     print(len(parser.get_list()))
-    parser.to_file("pawan.json")
+    parser.to_file("sero_filtered.m3u")
